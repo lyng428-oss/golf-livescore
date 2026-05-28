@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Golf Scoreboard</title>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+  <!-- Skrifttyper -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=DM+Sans:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #152b1e;
+      --bg-card:    rgba(255,255,255,0.06);
+      --bg-card-up: rgba(46,125,50,0.18);
+      --bg-card-dn: rgba(198,40,40,0.14);
+      --border:     rgba(255,255,255,0.10);
+      --border-up:  rgba(76,175,80,0.35);
+      --border-dn:  rgba(239,83,80,0.35);
+      --cream:      #f5f0e8;
+      --cream-dim:  rgba(245,240,232,0.55);
+      --gold:       #c9a84c;
+      --gold-lt:    #e8c878;
+      --score-as:   rgba(245,240,232,0.6);
+      --score-up:   #81c784;
+      --score-dn:   #ef9a9a;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--cream);
+      min-height: 100vh;
+    }
+
+    /* ── Header ───────────────────────────────── */
+    .header {
+      background: linear-gradient(180deg, #0a1a10 0%, var(--bg) 100%);
+      padding: 28px 20px 22px;
+      text-align: center;
+      border-bottom: 1px solid rgba(201,168,76,0.25);
+    }
+    .header-label {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      color: var(--gold);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .course-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 30px;
+      font-weight: 600;
+      color: var(--cream);
+      line-height: 1.2;
+    }
+    .status-line {
+      font-size: 12px;
+      color: var(--cream-dim);
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #66bb6a;
+      animation: blink 2s ease-in-out infinite;
+    }
+    .dot.off { background: #888; animation: none; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+    /* ── Setup-banner ─────────────────────────── */
+    .setup-banner {
+      margin: 16px;
+      padding: 14px 16px;
+      background: rgba(201,168,76,0.10);
+      border: 1px solid rgba(201,168,76,0.30);
+      border-radius: 10px;
+      font-size: 13px;
+      color: var(--gold-lt);
+      line-height: 1.6;
+    }
+    .setup-banner strong { font-weight: 500; display: block; margin-bottom: 4px; }
+    .setup-banner ol { padding-left: 16px; margin-top: 6px; }
+    .setup-banner li { margin-bottom: 3px; }
+    .setup-banner code {
+      background: rgba(0,0,0,0.3);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+
+    /* ── Kampe ────────────────────────────────── */
+    .matches {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .match-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: background 0.25s, border-color 0.25s;
+    }
+    .match-card.up   { background: var(--bg-card-up); border-color: var(--border-up); }
+    .match-card.down { background: var(--bg-card-dn); border-color: var(--border-dn); }
+
+    .match-info { flex: 1; min-width: 0; }
+    .match-num  { font-size: 11px; color: var(--cream-dim); letter-spacing: 0.05em; text-transform: uppercase; }
+    .match-player {
+      font-size: 16px; font-weight: 500; color: var(--cream);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      margin-top: 2px;
+    }
+
+    .score-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .score-btn {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.07);
+      color: var(--cream);
+      font-size: 24px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.12s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .score-btn:active { background: rgba(255,255,255,0.20); transform: scale(0.90); }
+
+    .score-display { min-width: 82px; text-align: center; }
+    .score-value   { font-size: 20px; font-weight: 500; }
+    .score-value.as   { color: var(--score-as); }
+    .score-value.up   { color: var(--score-up); }
+    .score-value.down { color: var(--score-dn); }
+
+    /* ── Bundlinje ────────────────────────────── */
+    .bottom-bar {
+      padding: 8px 16px 24px;
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 18px;
+      border-radius: 9px;
+      border: 1px solid rgba(201,168,76,0.35);
+      background: rgba(201,168,76,0.08);
+      color: var(--gold-lt);
+      font-size: 14px;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer;
+      transition: background 0.14s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active { background: rgba(201,168,76,0.20); }
+
+    /* ── Redigeringspanel ─────────────────────── */
+    .edit-panel {
+      display: none;
+      margin: 0 16px 24px;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 20px;
+    }
+    .edit-panel.open { display: block; }
+
+    .edit-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 17px;
+      color: var(--gold-lt);
+      margin-bottom: 16px;
+    }
+
+    .edit-group { margin-bottom: 12px; }
+    .edit-label {
+      font-size: 12px;
+      color: var(--cream-dim);
+      display: block;
+      margin-bottom: 4px;
+    }
+    .edit-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 8px;
+      color: var(--cream);
+      font-size: 15px;
+      font-family: 'DM Sans', sans-serif;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .edit-input:focus { border-color: rgba(201,168,76,0.50); }
+
+    .edit-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .edit-actions {
+      display: flex; gap: 8px; justify-content: flex-end;
+      margin-top: 18px;
+    }
+    .btn-cancel {
+      background: rgba(255,255,255,0.05);
+      border-color: rgba(255,255,255,0.14);
+      color: rgba(245,240,232,0.65);
+    }
+    .btn-save {
+      background: rgba(46,125,50,0.25);
+      border-color: rgba(76,175,80,0.40);
+      color: #a5d6a7;
+    }
+
+    /* ── Footer ───────────────────────────────── */
+    .footer {
+      text-align: center;
+      padding: 0 16px 32px;
+      font-size: 12px;
+      color: rgba(245,240,232,0.25);
+    }
+
+    @media (max-width: 380px) {
+      .edit-grid { grid-template-columns: 1fr; }
+      .course-name { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     FIREBASE KONFIGURATION
+     ═══════════════════════════════════════════════
+
+  Følg disse trin for at aktivere live-deling:
+
+  1. Gå til https://console.firebase.google.com
+  2. Klik "Add project" → giv det et navn → Continue
+  3. Klik "</>" (Web-app) → registrér app → kopiér firebaseConfig
+  4. I Firebase Console: Build → Realtime Database → Create database
+     Vælg en region (f.eks. europe-west1) → Start in test mode
+  5. Sæt regler til:
+       { "rules": { ".read": true, ".write": true } }
+     (Kun til privat brug – skift regler hvis siden er offentlig)
+  6. Udfyld dine værdier i firebaseConfig nedenfor og gem filen
+  7. Upload til GitHub Pages (se vejledning i bunden af filen)
+
+════════════════════════════════════════════════ -->
+
+
+<!-- ══ Layout ════════════════════════════════ -->
+<div class="header">
+  <div class="header-label">⛳ Hulspil &nbsp;·&nbsp; Live scoring</div>
+  <div class="course-name" id="course-display">Golf Scoreboard</div>
+  <div class="status-line">
+    <span class="dot off" id="status-dot"></span>
+    <span id="status-text">Forbinder...</span>
+  </div>
+</div>
+
+<div class="setup-banner" id="setup-banner">
+  <strong>⚙️ Firebase ikke konfigureret endnu</strong>
+  Udfyld <code>firebaseConfig</code> øverst i &lt;script&gt;-blokken for at aktivere live deling.
+  Se den detaljerede vejledning i kommentarerne i HTML-filen.
+</div>
+
+<div class="matches" id="matches"></div>
+
+<div class="bottom-bar">
+  <button class="btn" onclick="toggleEdit()">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
+    <span id="edit-btn-txt">Rediger navne</span>
+  </button>
+</div>
+
+<div class="edit-panel" id="edit-panel">
+  <div class="edit-title">Rediger oplysninger</div>
+  <div class="edit-group">
+    <label class="edit-label">Bane</label>
+    <input class="edit-input" type="text" id="edit-course" placeholder="Bane navn" />
+  </div>
+  <div class="edit-grid" id="edit-names"></div>
+  <div class="edit-actions">
+    <button class="btn btn-cancel" onclick="cancelEdit()">Annuller</button>
+    <button class="btn btn-save" onclick="saveEdit()">Gem ændringer</button>
+  </div>
+</div>
+
+<div class="footer">
+  Grøn = vi leder &nbsp;·&nbsp; Rød = vi er bagud &nbsp;·&nbsp; A/S = all square
+</div>
+
+<!--
+═══════════════════════════════════════════════════════════
+  HOSTING PÅ GITHUB PAGES (gratis)
+═══════════════════════════════════════════════════════════
+
+  1. Opret en gratis konto på https://github.com
+  2. Klik "New repository" → giv det et navn (f.eks. "golf-score")
+     → sæt til Public → Create repository
+  3. Upload filen: klik "uploading an existing file"
+     → træk golf-scoreboard.html ind → Commit changes
+  4. Gå til Settings → Pages
+     → Source: "Deploy from a branch"
+     → Branch: main / (root) → Save
+  5. Efter 1-2 minutter får du en URL som:
+     https://DITBRUGERNAVN.github.io/golf-score/golf-scoreboard.html
+  6. Del den URL med dit hold — alle kan nu følge med live!
+
+═══════════════════════════════════════════════════════════
+-->
+
+<script>
+  const firebaseConfig = {
+    apiKey:            "AIzaSyD-R3X9LGwUbkL43az6XGHm1PQQm5qk8OY",
+    authDomain:        "livescore-ffc17.firebaseapp.com",
+    databaseURL:       "https://livescore-ffc17-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId:         "livescore-ffc17",
+    storageBucket:     "livescore-ffc17.firebasestorage.app",
+    messagingSenderId: "652339909859",
+    appId:             "1:652339909859:web:fdd9d7acb78b7a5d08a1d6"
+  };
+
+  // ─── State ──────────────────────────────────
+  let state = {
+    course: "Golf Scoreboard",
+    matches: Array.from({length: 6}, (_, i) => ({
+      id: i, player: "Spiller " + (i + 1), score: 0
+    }))
+  };
+
+  const READY = firebaseConfig.apiKey !== "DIN_API_KEY";
+  let dbRef = null;
+
+  // ─── Firebase init ───────────────────────────
+  function init() {
+    if (READY) {
+      firebase.initializeApp(firebaseConfig);
+      dbRef = firebase.database().ref('golf_scoreboard');
+      dbRef.on('value', snap => {
+        const d = snap.val();
+        if (d) state = d;
+        else   persist();
+        render();
+        setStatus(true);
+      });
+      document.getElementById('setup-banner').style.display = 'none';
+    } else {
+      render();
+      setStatus(false);
+    }
+  }
+
+  function persist() {
+    if (dbRef) dbRef.set(state);
+  }
+
+  // ─── Score ──────────────────────────────────
+  function updateScore(id, delta) {
+    state.matches[id].score += delta;
+    persist();
+    if (!READY) render();
+  }
+
+  function scoreLabel(s) {
+    if (s === 0)  return 'A/S';
+    if (s  >  0)  return s + ' UP';
+    return Math.abs(s) + ' DOWN';
+  }
+
+  // ─── Render ──────────────────────────────────
+  function render() {
+    document.getElementById('course-display').textContent = state.course;
+    const c = document.getElementById('matches');
+    c.innerHTML = '';
+    state.matches.forEach(m => {
+      const cls   = m.score > 0 ? 'up' : m.score < 0 ? 'down' : '';
+      const sCls  = m.score > 0 ? 'up' : m.score < 0 ? 'down' : 'as';
+      const card  = document.createElement('div');
+      card.className = 'match-card ' + cls;
+      card.innerHTML =
+        '<div class="match-info">' +
+          '<div class="match-num">Kamp ' + (m.id + 1) + '</div>' +
+          '<div class="match-player">' + esc(m.player) + '</div>' +
+        '</div>' +
+        '<div class="score-controls">' +
+          '<button class="score-btn" ontouchstart="" ' +
+            'onclick="updateScore(' + m.id + ',-1)" aria-label="Én ned">−</button>' +
+          '<div class="score-display">' +
+            '<span class="score-value ' + sCls + '">' + scoreLabel(m.score) + '</span>' +
+          '</div>' +
+          '<button class="score-btn" ontouchstart="" ' +
+            'onclick="updateScore(' + m.id + ',1)" aria-label="Én op">+</button>' +
+        '</div>';
+      c.appendChild(card);
+    });
+  }
+
+  function setStatus(live) {
+    const dot  = document.getElementById('status-dot');
+    const text = document.getElementById('status-text');
+    if (live) {
+      dot.className = 'dot';
+      const t = new Date().toLocaleTimeString('da-DK',
+        {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+      text.textContent = 'Live · opdateret ' + t;
+    } else {
+      dot.className = 'dot off';
+      text.textContent = 'Ikke forbundet (konfiguration mangler)';
+    }
+  }
+
+  // ─── Rediger ─────────────────────────────────
+  let editing = false;
+  function toggleEdit() {
+    editing = !editing;
+    const panel = document.getElementById('edit-panel');
+    const btn   = document.getElementById('edit-btn-txt');
+    if (editing) {
+      panel.classList.add('open');
+      document.getElementById('edit-course').value = state.course;
+      const grid = document.getElementById('edit-names');
+      grid.innerHTML = '';
+      state.matches.forEach(m => {
+        const d = document.createElement('div');
+        d.className = 'edit-group';
+        d.innerHTML =
+          '<label class="edit-label">Kamp ' + (m.id + 1) + '</label>' +
+          '<input class="edit-input" type="text" id="ep-' + m.id + '" ' +
+            'value="' + esc(m.player) + '" placeholder="Spillernavn" />';
+        grid.appendChild(d);
+      });
+      btn.textContent = 'Luk';
+    } else {
+      panel.classList.remove('open');
+      btn.textContent = 'Rediger navne';
+    }
+  }
+
+  function cancelEdit() {
+    editing = false;
+    document.getElementById('edit-panel').classList.remove('open');
+    document.getElementById('edit-btn-txt').textContent = 'Rediger navne';
+  }
+
+  function saveEdit() {
+    const cv = document.getElementById('edit-course').value.trim();
+    if (cv) state.course = cv;
+    state.matches.forEach(m => {
+      const inp = document.getElementById('ep-' + m.id);
+      if (inp && inp.value.trim()) m.player = inp.value.trim();
+    });
+    persist();
+    if (!READY) render();
+    cancelEdit();
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
+  }
+
+  init();
+</script>
+</body>
+</html>
